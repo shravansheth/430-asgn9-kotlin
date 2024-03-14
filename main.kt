@@ -29,29 +29,53 @@ val topEnv = listOf(
     Bind("*", PrimOpV("*")),
     Bind("<=", PrimOpV("<=")),
     Bind("equal?", PrimOpV("equal?")),    
-  )
+)
+
+val forbiddenSymbols = listOf("if", "then", "else", "let", "anon", ":", "<-")
+
+fun validName(forbidden: List<String>, name: String) : Boolean {
+  when {
+    forbidden.isEmpty() -> return true
+    forbidden[0].equals(name) -> return false
+    else -> return validName(forbidden.subList(1, forbidden.size), name)
+  }
+}
 
 fun lookup(f: String, env: Env) : Value
 {
   when {
     env.isEmpty() -> throw Exception("OAZO: Couldn't find ${f} in Environment\n")
     env[0].name.equals(f) -> return env[0].value
-
+    else -> return lookup(f, env.subList(1, env.size))
   }
-  
-  return NumV(0.0f)
 }
 
 fun interp(exp: ExprC, env: Env) : Value {
   fun extendEnv(symbols : List<String>, arg: List<ExprC>, fenv: Env) : Env
   {
-    extendEnv(symbols, arg, fenv)
+    when {
+      symbols.isEmpty() -> return fenv
+      else -> return extendEnv(symbols.subList(1, symbols.size), 
+        arg.subList(1, arg.size), fenv) + Bind(symbols[0], 
+        interp(arg[0], env)) 
+    }
   }
 
   when {
     exp is NumC -> return NumV(exp.n)
     exp is StrC -> return StrV(exp.s)
     exp is IdC -> return lookup(exp.name, env)
+    exp is LamC -> return CloV(exp.arg, exp.body, env)
+    exp is  IfC -> {
+      val valExp = interp(exp.a, env)
+      when {
+        valExp is BoolV -> {
+          if(valExp.bool) return interp(exp.b, env)
+          else return interp(exp.c, env)
+        }
+        else -> throw Exception("OAZO: not a boolean opperator given for ifc")
+      }
+    }
     exp is AppC -> {
       val fValue = interp(exp.func, env)
       when {
@@ -63,7 +87,7 @@ fun interp(exp: ExprC, env: Env) : Value {
         )
         fValue is CloV -> {
           if(fValue.args.size == exp.arg.size) {
-            interp(fValue.body, extendEnv(fValue.args, exp.arg, fValue.env))
+            return interp(fValue.body, extendEnv(fValue.args, exp.arg, fValue.env))
           } else throw Exception("OAZO: invalid matching arguments in anon")
         } 
         else -> throw Exception("OAZO: Not implemented")
@@ -83,7 +107,7 @@ fun interpPrims(op: String, args: List<Value>) : Value {
     left is NumV &&  right is NumV && op.equals("-") -> return NumV(left.n - right.n)
     left is NumV &&  right is NumV && op.equals("*") -> return NumV(left.n * right.n)
     left is NumV &&  right is NumV && op.equals("/") -> {
-      if (right.n.equals(0)) throw Exception("OAZO: Division by zero attempted\n")
+      if (right.n.equals(0.0f)) throw Exception("OAZO: Division by zero attempted\n")
       return NumV(left.n / right.n)}
     op.equals("equal?") -> return BoolV(left.equals(right))
     left is NumV &&  right is NumV && op.equals("<=") -> return BoolV(left.n <= right.n)
@@ -105,5 +129,15 @@ fun serialize(value: Value) : String {
 fun main(args: Array<String>) {
   val obj = NumC(10.0f)
   assert(serialize(interp(obj, topEnv)).equals("10"))
-  assert(-1 > 0)
+  println(serialize(interp(AppC(IdC("+"), listOf(NumC(1.0f), NumC(2.0f))), topEnv)))
+  println(serialize(interp(AppC(IdC("+"), listOf(NumC(1.0f), NumC(2.0f))), topEnv)))
+  val result = AppC(
+        LamC(listOf("x"), NumC(4.0f)),
+        listOf(AppC(
+            IdC("+"),
+            listOf(IdC("x"), NumC(1.0f))
+        ))
+    )
+    println(serialize(interp(result, topEnv)))
+  // println(serialize(interp(AppC(IdC("/"), listOf(NumC(1.0f), NumC(0.0f))), topEnv)))
 }
