@@ -53,6 +53,7 @@ fun lookup(f: String, env: Env) : Value
 fun interp(exp: ExprC, env: Env) : Value {
   fun extendEnv(symbols : List<String>, arg: List<ExprC>, fenv: Env) : Env
   {
+    if (symbols.size != arg.size) throw Exception("OAZO: Different number of args and values given\n")
     when {
       symbols.isEmpty() -> return fenv
       else -> return extendEnv(symbols.subList(1, symbols.size), 
@@ -141,3 +142,14 @@ fun main(args: Array<String>) {
     println(serialize(interp(result, topEnv)))
   // println(serialize(interp(AppC(IdC("/"), listOf(NumC(1.0f), NumC(0.0f))), topEnv)))
 }
+
+
+// // Test Cases
+// AppC(
+//     LamC(listOf("x"), NumC(4.0f)),
+//         listOf(AppC(
+//                 IdC("+"),
+//                 listOf(IdC("x"), NumC(1.0f))
+//               ))
+//     )
+
